@@ -5,16 +5,16 @@ from datetime import datetime
 from sqlalchemy import create_engine
 
 # Load credentials from environment variables
-DB_USERNAME = os.getenv("DB_USERNAME")
-DB_PASSWORD = os.getenv("DB_PASSWORD")
-DB_HOST = os.getenv("DB_HOST")
-DB_NAME = os.getenv("DB_NAME")
-DB_PORT = os.getenv("DB_PORT", 5432)
+DB_USERNAME = st.secrets["connections.postgres"]["DB_USERNAME"]
+DB_PASSWORD = st.secrets["connections.postgres"]["DB_PASSWORD"]
+DB_HOST = st.secrets["connections.postgres"]["DB_HOST"]
+DB_NAME = st.secrets["connections.postgres"]["DB_NAME"]
+DB_PORT = st.secrets["connections.postgres"]["DB_PORT"]
 
 # Create database engine
 engine = create_engine(f"postgresql://{DB_USERNAME}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}")
 
-# Load data functions
+#Load data functions
 def load_inventory():
     df = pd.read_sql("SELECT * FROM purchase_audit", con=engine)
     df.columns = df.columns.str.strip().str.lower().str.replace(" ", "_")
