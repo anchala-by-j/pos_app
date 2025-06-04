@@ -1,0 +1,7 @@
+streamlit
+pandas
+openpyxl # This is usually needed for pandas to read/write .xlsx files
+python-barcode # If you used this for barcode generation
+Pillow       # If you used this for barcode image manipulation
+fpdf2        # If you used this for PDF generation
+sqlalchemy   # Add this line!
