@@ -12,9 +12,14 @@ DB_NAME = st.secrets["connections.postgres"]["DB_NAME"]
 DB_PORT = st.secrets["connections.postgres"]["DB_PORT"]
 
 # Create database engine
-engine = create_engine(f"postgresql://{DB_USERNAME}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}")
+@st.cache_resource
+def get_engine():
+    return create_engine(f"postgresql://{DB_USERNAME}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}")
+
+engine = get_engine()
 
 #Load data functions
+@st.cache_data(ttl=600) # Cache for 10 minutes
 def load_inventory():
     df = pd.read_sql('SELECT * FROM "mainDB".purchase_audit' , con=engine)
     df.columns = df.columns.str.strip().str.lower().str.replace(" ", "_")
