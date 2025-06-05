@@ -5,3 +5,4 @@ python-barcode # If you used this for barcode generation
 Pillow       # If you used this for barcode image manipulation
 fpdf2        # If you used this for PDF generation
 sqlalchemy   # Add this line!
+psycopg2-binary
