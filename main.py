@@ -27,10 +27,10 @@ def load_billbook():
     return pd.read_sql('SELECT * FROM "mainDB".billbook', con=engine)
 
 def save_sales(df):
-    df.to_sql('"mainDB".sales', con=engine, if_exists="append", index=False)
+    df.to_sql("sales", con=engine, if_exists="append", index=False, schema="mainDB")
 
 def save_billbook(df):
-    df.to_sql('"mainDB".billbook', con=engine, if_exists="append", index=False)
+    df.to_sql("billbook", con=engine, if_exists="append", index=False, schema="mainDB")
 
 # Initialize session state
 if 'bill_items' not in st.session_state:
