@@ -111,7 +111,7 @@ if st.session_state.bill_items:
     returns = st.number_input("Returns", min_value=0.0, value=0.0)
 
     if st.button("Confirm Sale", disabled=not st.session_state.bill_items):
-        if bill_no.strip() and customer.strip() and paid > 0:
+        if bill_no.strip() and customer.strip() > 0:
             total_amount = sum([item['total_price'] for item in st.session_state.bill_items])
 
             sales_df = pd.DataFrame([{
