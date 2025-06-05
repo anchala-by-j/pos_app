@@ -4,6 +4,7 @@ import os
 from datetime import datetime
 from sqlalchemy import create_engine
 
+
 st.image("logo.png", use_column_width=True)  # adjust width as needed
 # Load credentials from environment variables
 DB_USERNAME = st.secrets["connections.postgres"]["DB_USERNAME"]
@@ -15,7 +16,14 @@ DB_PORT = st.secrets["connections.postgres"]["DB_PORT"]
 # Create database engine
 @st.cache_resource
 def get_engine():
-    return create_engine(f"postgresql://{DB_USERNAME}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}")
+    cert_path = os.path.join(os.path.dirname(__file__), "prod-ca-2021.crt")
+    return create_engine(
+        f"postgresql://{DB_USERNAME}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}",
+        connect_args={
+            "sslmode": "verify-full",
+            "sslrootcert": cert_path
+        }
+    )
 
 engine = get_engine()
 
