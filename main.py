@@ -16,21 +16,21 @@ engine = create_engine(f"postgresql://{DB_USERNAME}:{DB_PASSWORD}@{DB_HOST}:{DB_
 
 #Load data functions
 def load_inventory():
-    df = pd.read_sql("SELECT * FROM purchase_audit", con=engine)
+    df = pd.read_sql('SELECT * FROM "mainDB".purchase_audit' , con=engine)
     df.columns = df.columns.str.strip().str.lower().str.replace(" ", "_")
     return df
 
 def load_sales():
-    return pd.read_sql("SELECT * FROM sales", con=engine)
+    return pd.read_sql('SELECT * FROM "mainDB".sales', con=engine)
 
 def load_billbook():
-    return pd.read_sql("SELECT * FROM billbook", con=engine)
+    return pd.read_sql('SELECT * FROM "mainDB".billbook', con=engine)
 
 def save_sales(df):
-    df.to_sql("sales", con=engine, if_exists="append", index=False)
+    df.to_sql('"mainDB".sales', con=engine, if_exists="append", index=False)
 
 def save_billbook(df):
-    df.to_sql("billbook", con=engine, if_exists="append", index=False)
+    df.to_sql('"mainDB".billbook', con=engine, if_exists="append", index=False)
 
 # Initialize session state
 if 'bill_items' not in st.session_state:
