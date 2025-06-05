@@ -106,7 +106,7 @@ if st.session_state.bill_items:
                 'amount': total_amount,
                 'paid': paid,
                 'bal_paid': 0,
-                'returns': returns,
+                # 'returns': returns,
                 'balance': total_amount - paid
             }])
             save_sales(sales_df)
