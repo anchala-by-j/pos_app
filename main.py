@@ -4,6 +4,7 @@ import os
 from datetime import datetime
 from sqlalchemy import create_engine
 
+st.image("logo.png", width=200)  # adjust width as needed
 # Load credentials from environment variables
 DB_USERNAME = st.secrets["connections.postgres"]["DB_USERNAME"]
 DB_PASSWORD = st.secrets["connections.postgres"]["DB_PASSWORD"]
