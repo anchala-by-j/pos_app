@@ -76,7 +76,7 @@ if barcode:
 
     if not product.empty:
         item = product.iloc[0]
-        st.success(f"Product Found: {item['product_name']}")
+        st.success(f" {item['product_name']}")
         st.write(f"Price: ₹{item['price']}")
 
         quantity = st.number_input("Enter Quantity", min_value=1, value=1)
