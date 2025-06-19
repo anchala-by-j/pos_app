@@ -37,6 +37,7 @@ def load_inventory():
 def load_sales():
     return pd.read_sql('SELECT * FROM "mainDB".sales', con=engine)
 
+
 def load_billbook():
     return pd.read_sql('SELECT * FROM "mainDB".billbook', con=engine)
 
@@ -113,7 +114,19 @@ if st.session_state.bill_items:
     display_df_with_total = pd.concat([display_df, total_row], ignore_index=True)
     st.dataframe(display_df_with_total)
 
-    bill_no = st.text_input("Bill Number")
+
+    def get_next_bill_no():
+        try:
+            result = pd.read_sql('SELECT MAX(bill_no) AS max_bill FROM "mainDB".sales', con=engine)
+            max_bill = result['max_bill'].iloc[0]
+            return int(max_bill) + 1 if pd.notna(max_bill) else 1
+        except Exception as e:
+            st.error(f"Error fetching last bill number: {e}")
+            return 1
+
+
+    bill_no = get_next_bill_no()
+    st.markdown(f"### 🧾 Bill Number: `{bill_no}`")
     customer = st.text_input("Customer Name")
     paid = st.number_input("Paid Amount", min_value=0.0, value=0.0)
     returns = st.number_input("Returns", min_value=0.0, value=0.0)
