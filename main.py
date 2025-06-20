@@ -2,10 +2,10 @@ import streamlit as st
 import pandas as pd
 import os
 from datetime import datetime
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 
+st.image("logo.png", use_container_width=True)
 
-st.image("logo.png", use_container_width=True)  # adjust width as needed
 # Load credentials from environment variables
 DB_USERNAME = st.secrets["connections.postgres"]["DB_USERNAME"]
 DB_PASSWORD = st.secrets["connections.postgres"]["DB_PASSWORD"]
@@ -27,16 +27,15 @@ def get_engine():
 
 engine = get_engine()
 
-#Load data functions
-@st.cache_data(ttl=600) # Cache for 10 minutes
+# Load data functions
+@st.cache_data(ttl=600)
 def load_inventory():
-    df = pd.read_sql('SELECT * FROM "mainDB".purchase_audit' , con=engine)
+    df = pd.read_sql('SELECT * FROM "mainDB".purchase_audit', con=engine)
     df.columns = df.columns.str.strip().str.lower().str.replace(" ", "_")
     return df
 
 def load_sales():
     return pd.read_sql('SELECT * FROM "mainDB".sales', con=engine)
-
 
 def load_billbook():
     return pd.read_sql('SELECT * FROM "mainDB".billbook', con=engine)
@@ -47,112 +46,179 @@ def save_sales(df):
 def save_billbook(df):
     df.to_sql("billbook", con=engine, if_exists="append", index=False, schema="mainDB")
 
+def save_return(df):
+    df.to_sql("returns", con=engine, if_exists="append", index=False, schema="mainDB")
+
+def save_balance_payment(df):
+    df.to_sql("balance_payments", con=engine, if_exists="append", index=False, schema="mainDB")
+
+def update_balance(bill_no, amount):
+    with engine.begin() as conn:
+        conn.execute(text('''
+            UPDATE "mainDB".sales
+            SET paid = paid + :amount,
+                balance = GREATEST(balance - :amount, 0)
+            WHERE bill_no = :bill_no
+        '''), {'amount': amount, 'bill_no': bill_no})
+
 # Initialize session state
 if 'bill_items' not in st.session_state:
     st.session_state.bill_items = []
 
-# UI Header
-st.title("Anchala")
-st.markdown(
-    """
-    <style>
-        .stApp {
-            background-color: #fabec0;
-        }
-    </style>
-    """,
-    unsafe_allow_html=True
-)
-st.markdown("Scan or enter the barcode below to add items to a bill.")
+# UI Navigation
+page = st.sidebar.radio("Select Module", ["POS", "Returns", "Balances"])
 
-# Barcode input
-barcode = st.text_input("Scan Barcode (Product Code)")
+if page == "POS":
+    st.title("Anchala POS")
+    st.markdown("""
+        <style>
+            .stApp {
+                background-color: #fabec0;
+            }
+        </style>
+    """, unsafe_allow_html=True)
+    st.markdown("Scan or enter the barcode below to add items to a bill.")
 
-if barcode:
-    inventory_df = load_inventory()
-    barcode_cleaned = str(barcode).strip().lower()
-    inventory_df['product_code'] = inventory_df['product_code'].astype(str).str.strip().str.lower()
+    barcode = st.text_input("Scan Barcode (Product Code)")
 
-    product = inventory_df[inventory_df['product_code'] == barcode_cleaned]
+    if barcode:
+        inventory_df = load_inventory()
+        barcode_cleaned = str(barcode).strip().lower()
+        inventory_df['product_code'] = inventory_df['product_code'].astype(str).str.strip().str.lower()
 
-    if not product.empty:
-        item = product.iloc[0]
-        st.success(f" {item['product_name']}")
-        st.write(f"Price: ₹{item['price']}")
+        product = inventory_df[inventory_df['product_code'] == barcode_cleaned]
 
-        quantity = st.number_input("Enter Quantity", min_value=1, value=1)
-        selling_price = st.number_input("Selling Price", min_value=0.0, value=float(item['price']))
+        if not product.empty:
+            item = product.iloc[0]
+            st.success(f" {item['product_name']}")
+            st.write(f"Price: ₹{item['price']}")
 
-        if st.button("Add to Bill", key=f"add_{barcode}"):
-            st.session_state.bill_items.append({
-                'product_code': barcode,
-                'product_name': item['product_name'],
-                'qty': quantity,
-                'cost': item['cost'],
-                'price': selling_price,
-                'total_price': selling_price * quantity,
-                'margin': (selling_price - item['cost']) * quantity
-            })
-            st.success("Item added to bill.")
-    else:
-        st.error("Product not found in inventory.")
+            quantity = st.number_input("Enter Quantity", min_value=1, value=1)
+            selling_price = st.number_input("Selling Price", min_value=0.0, value=float(item['price']))
 
-# Show current bill items
-if st.session_state.bill_items:
-    st.subheader("Current Bill Items")
-
-    display_df = pd.DataFrame(st.session_state.bill_items).drop(columns=["cost", "margin"])
-
-    total_row = pd.DataFrame([{
-        'product_code': '',
-        'product_name': 'Total',
-        'qty': '',
-        'price': '',
-        'total_price': display_df['total_price'].sum()
-    }])
-
-    display_df_with_total = pd.concat([display_df, total_row], ignore_index=True)
-    st.dataframe(display_df_with_total)
-
-
-    def get_next_bill_no():
-        try:
-            result = pd.read_sql('SELECT MAX(bill_no) AS max_bill FROM "mainDB".sales', con=engine)
-            max_bill = result['max_bill'].iloc[0]
-            return int(max_bill) + 1 if pd.notna(max_bill) else 1
-        except Exception as e:
-            st.error(f"Error fetching last bill number: {e}")
-            return 1
-
-
-    bill_no = get_next_bill_no()
-    st.markdown(f"### 🧾 Bill Number: `{bill_no}`")
-    customer = st.text_input("Customer Name")
-    paid = st.number_input("Paid Amount", min_value=0.0, value=0.0)
-    returns = st.number_input("Returns", min_value=0.0, value=0.0)
-
-    if st.button("Confirm Sale", disabled=not st.session_state.bill_items):
-        if bill_no.strip() and customer.strip():
-            total_amount = sum([item['total_price'] for item in st.session_state.bill_items])
-
-            sales_df = pd.DataFrame([{
-                'bill_no': bill_no,
-                'date': datetime.today().date(),
-                'customer': customer,
-                'items': len(st.session_state.bill_items),
-                'amount': total_amount,
-                'paid': paid,
-                'bal_paid': 0,
-                # 'returns': returns,
-                'balance': total_amount - paid
-            }])
-            save_sales(sales_df)
-
-            billbook_df = pd.DataFrame(st.session_state.bill_items)
-            billbook_df['bill_no'] = bill_no
-            save_billbook(billbook_df)
-
-            st.success("Sale recorded and bill updated.")
-            st.session_state.bill_items.clear()
+            if st.button("Add to Bill", key=f"add_{barcode}"):
+                st.session_state.bill_items.append({
+                    'product_code': barcode,
+                    'product_name': item['product_name'],
+                    'qty': quantity,
+                    'cost': item['cost'],
+                    'price': selling_price,
+                    'total_price': selling_price * quantity,
+                    'margin': (selling_price - item['cost']) * quantity
+                })
+                st.success("Item added to bill.")
         else:
-            st.warning("Fill Bill Number and Customer Name before confirming.")
+            st.error("Product not found in inventory.")
+
+    if st.session_state.bill_items:
+        st.subheader("Current Bill Items")
+
+        display_df = pd.DataFrame(st.session_state.bill_items).drop(columns=["cost", "margin"])
+
+        total_row = pd.DataFrame([{
+            'product_code': '',
+            'product_name': 'Total',
+            'qty': '',
+            'price': '',
+            'total_price': display_df['total_price'].sum()
+        }])
+
+        display_df_with_total = pd.concat([display_df, total_row], ignore_index=True)
+        st.dataframe(display_df_with_total)
+
+        def get_next_bill_no():
+            try:
+                result = pd.read_sql('SELECT MAX(bill_no) AS max_bill FROM "mainDB".sales', con=engine)
+                max_bill = result['max_bill'].iloc[0]
+                return int(max_bill) + 1 if pd.notna(max_bill) else 1
+            except Exception as e:
+                st.error(f"Error fetching last bill number: {e}")
+                return 1
+
+        bill_no = str(get_next_bill_no())
+        st.markdown(f"### 🧾 Bill Number: `{bill_no}`")
+        customer = st.text_input("Customer Name")
+        paid = st.number_input("Paid Amount", min_value=0.0, value=0.0)
+        returns = st.number_input("Returns", min_value=0.0, value=0.0)
+
+        if st.button("Confirm Sale", disabled=not st.session_state.bill_items):
+            if bill_no.strip() and customer.strip():
+                total_amount = sum([item['total_price'] for item in st.session_state.bill_items])
+
+                sales_df = pd.DataFrame([{
+                    'bill_no': bill_no,
+                    'date': datetime.today().date(),
+                    'customer': customer,
+                    'items': len(st.session_state.bill_items),
+                    'amount': total_amount,
+                    'paid': paid,
+                    'bal_paid': 0,
+                    'balance': total_amount - paid
+                }])
+                save_sales(sales_df)
+
+                billbook_df = pd.DataFrame(st.session_state.bill_items)
+                billbook_df['bill_no'] = bill_no
+                save_billbook(billbook_df)
+
+                st.success("Sale recorded and bill updated.")
+                st.session_state.bill_items.clear()
+            else:
+                st.warning("Fill Customer Name and Paid Amount before confirming.")
+
+elif page == "Returns":
+    st.title("Returns")
+    bill_no = st.text_input("Bill Number")
+    product_code = st.text_input("Product Code")
+    qty = st.number_input("Quantity Returned", min_value=1, value=1)
+    refund_amount = st.number_input("Refund/Adjustment Amount", min_value=0.0, value=0.0)
+    remarks = st.text_input("Remarks")
+
+    if st.button("Process Return"):
+        if bill_no and product_code:
+            try:
+                return_data = pd.DataFrame([{
+                    'bill_no': bill_no,
+                    'product_code': product_code,
+                    'product_name': '',  # Optional, fetch if needed
+                    'qty': qty,
+                    'return_date': datetime.today().date(),
+                    'refund_amount': refund_amount,
+                    'remarks': remarks
+                }])
+                save_return(return_data)
+
+                # Add returned qty back to inventory logic here if needed
+                update_balance(bill_no, refund_amount)  # Adjust customer's balance
+                st.success("Return processed successfully.")
+            except Exception as e:
+                st.error(f"Error processing return: {e}")
+        else:
+            st.warning("Please enter Bill Number and Product Code.")
+
+elif page == "Balances":
+    st.title("Update Balances")
+    bill_no = st.text_input("Bill Number")
+    customer = st.text_input("Customer Name")
+    amount = st.number_input("Amount Paid", min_value=0.0, value=0.0)
+    remarks = st.text_input("Remarks")
+
+    if st.button("Update Balance"):
+        if bill_no and amount > 0:
+            try:
+                update_balance(bill_no, amount)
+
+                payment_df = pd.DataFrame([{
+                    'bill_no': bill_no,
+                    'customer': customer,
+                    'payment_date': datetime.today().date(),
+                    'amount_paid': amount,
+                    'remarks': remarks
+                }])
+                save_balance_payment(payment_df)
+
+                st.success("Balance updated successfully.")
+            except Exception as e:
+                st.error(f"Error updating balance: {e}")
+        else:
+            st.warning("Please provide Bill Number and a valid Amount.")
