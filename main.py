@@ -231,10 +231,12 @@ if page == "POS":
                 billbook_df['bill_no'] = bill_no
                 save_billbook(billbook_df)
 
-                st.success("Sale recorded and bill updated.")
-                st.session_state.bill_items.clear()
                 invoice_path = generate_invoice_pdf(bill_no, customer, st.session_state.bill_items, total_amount, paid,
                                                     total_amount - paid)
+                st.success("Sale recorded and bill updated.")
+                st.download_button("📄 Download Invoice", open(invoice_path, "rb"), file_name=f"Invoice_{bill_no}.pdf",
+                                   mime="application/pdf")
+                st.session_state.bill_items.clear()
                 with open(invoice_path, "rb") as f:
                     st.download_button("📄 Download Invoice", f, file_name=f"Invoice_{bill_no}.pdf",
                                        mime="application/pdf")
