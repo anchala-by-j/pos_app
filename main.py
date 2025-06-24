@@ -90,7 +90,7 @@ def generate_invoice_pdf(bill_no, customer, bill_items, total_amount, paid, bala
     # Table headers
     pdf.set_font("Arial", 'B', 12)
     pdf.set_fill_color(240, 240, 240)
-    pdf.cell(70, 10, "Product", border=1, fill=True)
+    pdf.cell(80, 10, "Product", border=1, fill=True)
     pdf.cell(30, 10, "Qty", border=1, fill=True, align="C")
     pdf.cell(40, 10, "Price", border=1, fill=True, align="C")
     pdf.cell(40, 10, "Total", border=1, fill=True, align="C")
