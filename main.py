@@ -99,18 +99,27 @@ def generate_invoice_pdf(bill_no, customer, bill_items, total_amount, paid, bala
     # Table rows
     pdf.set_font("Arial", size=12)
     for item in bill_items:
-        pdf.cell(70, 10, str(item['product_name']), border=1)
-        pdf.cell(30, 10, str(item['qty']), border=1, align="C")
-        pdf.cell(40, 10, f"₹{item['price']:.2f}", border=1, align="R")
-        pdf.cell(40, 10, f"₹{item['total_price']:.2f}", border=1, align="R")
+        product = item.get('product_name', '')
+        qty = item.get('qty', 0)
+        price = item.get('price', 0.0)
+        total = item.get('total_price', 0.0)
+
+        pdf.cell(80, 10, str(product), border=1)
+        pdf.cell(30, 10, str(qty), border=1, align="C")
+        pdf.cell(40, 10, f"Rs.{price:.2f}", border=1, align="R")
+        pdf.cell(40, 10, f"Rs.{total:.2f}", border=1, align="R")
         pdf.ln()
 
     # Totals
     pdf.ln(5)
-    pdf.set_font("Arial", 'B', 12)
-    pdf.cell(100, 10, f"Total Amount: Rs.{total_amount:.2f}", ln=True)
-    pdf.cell(100, 10, f"Paid: Rs.{paid:.2f}", ln=True)
-    pdf.cell(100, 10, f"Balance: Rs.{balance:.2f}", ln=True)
+    pdf.cell(150, 10, "Total Amount", border=1)
+    pdf.cell(40, 10, f"Rs.{total_amount:.2f}", border=1, align="R")
+    pdf.ln()
+    pdf.cell(150, 10, "Paid", border=1)
+    pdf.cell(40, 10, f"Rs.{paid:.2f}", border=1, align="R")
+    pdf.ln()
+    pdf.cell(150, 10, "Balance", border=1)
+    pdf.cell(40, 10, f"Rs.{balance:.2f}", border=1, align="R")
 
     # Footer note
     pdf.ln(15)
