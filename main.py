@@ -108,9 +108,9 @@ def generate_invoice_pdf(bill_no, customer, bill_items, total_amount, paid, bala
     # Totals
     pdf.ln(5)
     pdf.set_font("Arial", 'B', 12)
-    pdf.cell(100, 10, f"Total Amount: ₹{total_amount:.2f}", ln=True)
-    pdf.cell(100, 10, f"Paid: ₹{paid:.2f}", ln=True)
-    pdf.cell(100, 10, f"Balance: ₹{balance:.2f}", ln=True)
+    pdf.cell(100, 10, f"Total Amount: Rs.{total_amount:.2f}", ln=True)
+    pdf.cell(100, 10, f"Paid: Rs.{paid:.2f}", ln=True)
+    pdf.cell(100, 10, f"Balance: Rs.{balance:.2f}", ln=True)
 
     # Footer note
     pdf.ln(15)
