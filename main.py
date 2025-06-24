@@ -3,6 +3,8 @@ import pandas as pd
 import os
 from datetime import datetime
 from sqlalchemy import create_engine, text
+import tempfile
+from fpdf import (FPDF)
 
 st.image("logo.png", use_container_width=True)
 
@@ -60,6 +62,65 @@ def update_balance(bill_no, amount):
                 balance = GREATEST(balance - :amount, 0)
             WHERE bill_no = :bill_no
         '''), {'amount': amount, 'bill_no': bill_no})
+
+def generate_invoice_pdf(bill_no, customer, bill_items, total_amount, paid, balance):
+    pdf = FPDF(orientation='P', unit='mm', format='A4')
+    pdf.add_page()
+    pdf.set_auto_page_break(auto=True, margin=15)
+
+    # Add logo
+    logo_path = os.path.join(os.path.dirname(__file__), "logo.png")
+    if os.path.exists(logo_path):
+        pdf.image(logo_path, x=80, y=10, w=50)
+        pdf.ln(30)
+    else:
+        pdf.ln(10)
+
+    # Header
+    pdf.set_font("Arial", 'B', 16)
+    pdf.cell(200, 10, txt="Anchala Sarees - Invoice", ln=True, align="C")
+    pdf.ln(5)
+
+    pdf.set_font("Arial", size=12)
+    pdf.cell(100, 10, txt=f"Bill No: {bill_no}", ln=True)
+    pdf.cell(100, 10, txt=f"Customer: {customer}", ln=True)
+    pdf.cell(100, 10, txt=f"Date: {datetime.today().strftime('%d-%m-%Y')}", ln=True)
+    pdf.ln(5)
+
+    # Table headers
+    pdf.set_font("Arial", 'B', 12)
+    pdf.set_fill_color(240, 240, 240)
+    pdf.cell(70, 10, "Product", border=1, fill=True)
+    pdf.cell(30, 10, "Qty", border=1, fill=True, align="C")
+    pdf.cell(40, 10, "Price", border=1, fill=True, align="C")
+    pdf.cell(40, 10, "Total", border=1, fill=True, align="C")
+    pdf.ln()
+
+    # Table rows
+    pdf.set_font("Arial", size=12)
+    for item in bill_items:
+        pdf.cell(70, 10, str(item['product_name']), border=1)
+        pdf.cell(30, 10, str(item['qty']), border=1, align="C")
+        pdf.cell(40, 10, f"₹{item['price']:.2f}", border=1, align="R")
+        pdf.cell(40, 10, f"₹{item['total_price']:.2f}", border=1, align="R")
+        pdf.ln()
+
+    # Totals
+    pdf.ln(5)
+    pdf.set_font("Arial", 'B', 12)
+    pdf.cell(100, 10, f"Total Amount: ₹{total_amount:.2f}", ln=True)
+    pdf.cell(100, 10, f"Paid: ₹{paid:.2f}", ln=True)
+    pdf.cell(100, 10, f"Balance: ₹{balance:.2f}", ln=True)
+
+    # Footer note
+    pdf.ln(15)
+    pdf.set_font("Arial", 'I', 10)
+    pdf.cell(200, 10, txt="Thank you for shopping at Anchala Sarees!", ln=True, align="C")
+
+    # Save to temporary file
+    tmp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
+    pdf.output(tmp_file.name)
+    return tmp_file.name
 
 # Initialize session state
 if 'bill_items' not in st.session_state:
@@ -163,6 +224,11 @@ if page == "POS":
 
                 st.success("Sale recorded and bill updated.")
                 st.session_state.bill_items.clear()
+                invoice_path = generate_invoice_pdf(bill_no, customer, st.session_state.bill_items, total_amount, paid,
+                                                    total_amount - paid)
+                with open(invoice_path, "rb") as f:
+                    st.download_button("📄 Download Invoice", f, file_name=f"Invoice_{bill_no}.pdf",
+                                       mime="application/pdf")
             else:
                 st.warning("Fill Customer Name and Paid Amount before confirming.")
 

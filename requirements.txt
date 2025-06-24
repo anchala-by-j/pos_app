@@ -1,8 +1,9 @@
-streamlit
-pandas
+streamlit~=1.45.1
+pandas~=2.2.3
 openpyxl # This is usually needed for pandas to read/write .xlsx files
 python-barcode # If you used this for barcode generation
 Pillow       # If you used this for barcode image manipulation
 fpdf2        # If you used this for PDF generation
-sqlalchemy   # Add this line!
+sqlalchemy~=2.0.41
 psycopg2-binary
+fpdf~=1.7.2
