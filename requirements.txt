@@ -9,3 +9,4 @@ psycopg2-binary
 fpdf~=1.7.2
 opencv-python-headless
 pyzbar
+streamlit-webrtc
