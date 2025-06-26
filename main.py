@@ -198,9 +198,75 @@ function stopScanner() {
 </script>
     """
 
-    components.html(scanner_with_buttons, height=500, scrolling=True)
+    components.html(
+        """
+        <audio id="beepSound" src="https://www.soundjay.com/button/beep-07.wav" preload="auto"></audio>
+        <div style="margin-bottom:10px;">
+          <button onclick="startScanner()">📷 Start Scanning</button>
+          <button onclick="stopScanner()">🛑 Stop Scanning</button>
+        </div>
+        <div id="reader" style="width:300px;"></div>
+        <script src="https://unpkg.com/html5-qrcode"></script>
+        <script>
+        let html5QrcodeScanner;
+        let beepPlayed = false;
 
-    barcode = st.text_input("Or enter barcode manually")
+        function startScanner() {
+            if (!html5QrcodeScanner) {
+                html5QrcodeScanner = new Html5Qrcode("reader");
+            }
+
+            html5QrcodeScanner.start(
+                { facingMode: "environment" },
+                { fps: 10, qrbox: 250 },
+                (decodedText) => {
+                    if (!beepPlayed) {
+                        document.getElementById("beepSound").play();
+                        beepPlayed = true;
+                    }
+
+                    // Send message to Streamlit
+                    const message = { type: "barcode", data: decodedText };
+                    window.parent.postMessage(message, "*");
+
+                    html5QrcodeScanner.stop().then(() => {
+                        beepPlayed = false;
+                        html5QrcodeScanner.clear();
+                    });
+                },
+                (error) => {}
+            );
+        }
+
+        function stopScanner() {
+            if (html5QrcodeScanner) {
+                html5QrcodeScanner.stop().then(() => {
+                    html5QrcodeScanner.clear();
+                    beepPlayed = false;
+                });
+            }
+        }
+        </script>
+        """,
+        height=500
+    )
+    components.html(
+        """
+        <script>
+        window.addEventListener("message", (event) => {
+            if (event.data && event.data.type === "barcode") {
+                const input = window.parent.document.querySelector('input[data-testid="stTextInput"][placeholder="Or enter barcode manually"]');
+                if (input) {
+                    input.value = event.data.data;
+                    input.dispatchEvent(new Event("input", { bubbles: true }));
+                }
+            }
+        });
+        </script>
+        """,
+        height=0
+    )
+    barcode = st.text_input("Or enter barcode manually", key="manual_barcode", placeholder="Or enter barcode manually")
 
     if barcode:
         inventory_df = load_inventory()
