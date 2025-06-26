@@ -136,7 +136,7 @@ if page == "POS":
     """, unsafe_allow_html=True)
     st.markdown("Scan or enter the barcode below to add items to a bill.")
 
-    st.markdown("### 📸 Scan Barcode Using Camera")
+    st.markdown("### 📸 Scan Barcode")
     scanner_with_buttons = """
     <audio id="beepSound" src="beep.mp3" preload="auto"></audio>
     <div style="margin-bottom:10px;">
