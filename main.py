@@ -136,26 +136,43 @@ if page == "POS":
     st.markdown("Scan or enter the barcode below to add items to a bill.")
 
     st.markdown("### 📸 Scan Barcode Using Camera")
-    scanner_html = """
-    <script src=\"https://unpkg.com/html5-qrcode\" type=\"text/javascript\"></script>
-    <div id=\"reader\" style=\"width: 300px;\"></div>
-
+    beep_audio = """
+    <audio id="beepSound" src="beep.mp3" preload="auto"></audio>
     <script>
+    let beepPlayed = false;
     function onScanSuccess(decodedText, decodedResult) {
-        const inputBox = window.parent.document.querySelector('iframe').contentWindow.document.querySelector('input[data-testid="stTextInput"]');
-        if (inputBox) {
-            inputBox.value = decodedText;
-            inputBox.dispatchEvent(new Event("input", { bubbles: true }));
+        const beep = document.getElementById("beepSound");
+        if (!beepPlayed) {
+            beep.play();
+            beepPlayed = true;
         }
+        const barcodeInput = window.parent.document.querySelector('input[data-testid="stTextInput"]');
+        if (barcodeInput) {
+            barcodeInput.value = decodedText;
+            barcodeInput.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+        // Stop scanning once code is read
         html5QrcodeScanner.clear();
     }
-
-    const html5QrcodeScanner = new Html5QrcodeScanner(
-        "reader", { fps: 10, qrbox: 250 }, false);
-    html5QrcodeScanner.render(onScanSuccess);
     </script>
     """
-    st.components.v1.html(scanner_html, height=400)
+
+    scanner_html = f"""
+    <link src="https://unpkg.com/html5-qrcode"></script>
+    <script src="https://unpkg.com/html5-qrcode"></script>
+    <div id="reader" style="width:300px;"></div>
+    <script>
+    function startScanner() {{
+        const html5QrcodeScanner = new Html5QrcodeScanner(
+            "reader", {{ fps: 10, qrbox: 250 }}, false);
+        html5QrcodeScanner.render(onScanSuccess);
+    }}
+    startScanner();
+    </script>
+    """
+
+    # Inject both HTML + audio
+    st.components.v1.html(beep_audio + scanner_html, height=400)
 
     barcode = st.text_input("Or enter barcode manually")
 
