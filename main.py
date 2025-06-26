@@ -138,64 +138,67 @@ if page == "POS":
 
     st.markdown("### 📸 Scan Barcode")
     scanner_with_buttons = """
-    <audio id="beepSound" src="beep.mp3" preload="auto"></audio>
-    <div style="margin-bottom:10px;">
-      <button onclick="startScanner()">📷 Start Scanning</button>
-      <button onclick="stopScanner()">🛑 Stop Scanning</button>
-    </div>
-    <div id="reader" style="width:300px;"></div>
-    <script src="https://unpkg.com/html5-qrcode"></script>
-    <script>
-    let html5QrcodeScanner;
-    let beepPlayed = false;
+    <audio id="beepSound" src="https://www.soundjay.com/button/beep-07.wav" preload="auto"></audio>
+<div style="margin-bottom:10px;">
+  <button onclick="startScanner()">📷 Start Scanning</button>
+  <button onclick="stopScanner()">🛑 Stop Scanning</button>
+</div>
+<div id="reader" style="width:300px;"></div>
+<script src="https://unpkg.com/html5-qrcode"></script>
+<script>
+let html5QrcodeScanner;
+let beepPlayed = false;
 
-    function startScanner() {
-        if (!html5QrcodeScanner) {
-            html5QrcodeScanner = new Html5Qrcode("reader");
-        }
+function startScanner() {
+    if (!html5QrcodeScanner) {
+        html5QrcodeScanner = new Html5Qrcode("reader");
+    }
 
-        html5QrcodeScanner.start(
-            { facingMode: "environment" },
-            {
-                fps: 10,
-                qrbox: 250
-            },
-            (decodedText, decodedResult) => {
-                if (!beepPlayed) {
-                    document.getElementById("beepSound").play();
-                    beepPlayed = true;
-                }
-                const barcodeInput = window.parent.document.querySelector('input[data-testid="stTextInput"]');
-                if (barcodeInput) {
-                    barcodeInput.value = decodedText;
-                    barcodeInput.dispatchEvent(new Event('input', { bubbles: true }));
-                }
-                html5QrcodeScanner.stop().then(() => {
-                    beepPlayed = false;
-                    console.log("Scanner stopped");
-                }).catch(err => console.error("Stop error:", err));
-            },
-            (errorMessage) => {
-                // Optional: console.log(errorMessage);
+    html5QrcodeScanner.start(
+        { facingMode: "environment" },
+        {
+            fps: 10,
+            qrbox: 250
+        },
+        (decodedText, decodedResult) => {
+            if (!beepPlayed) {
+                document.getElementById("beepSound").play();
+                beepPlayed = true;
             }
-        ).catch(err => {
-            console.error("Start error:", err);
-        });
-    }
-
-    function stopScanner() {
-        if (html5QrcodeScanner) {
+            const inputBoxes = window.parent.document.querySelectorAll('input');
+            for (const box of inputBoxes) {
+                if (box.placeholder === "Or enter barcode manually") {
+                    box.value = decodedText;
+                    box.dispatchEvent(new Event("input", { bubbles: true }));
+                    break;
+                }
+            }
             html5QrcodeScanner.stop().then(() => {
-                html5QrcodeScanner.clear();
                 beepPlayed = false;
-                console.log("Scanner manually stopped");
+                console.log("Scanner stopped");
             }).catch(err => console.error("Stop error:", err));
+        },
+        (errorMessage) => {
+            // Optional debug
         }
+    ).catch(err => {
+        console.error("Start error:", err);
+    });
+}
+
+function stopScanner() {
+    if (html5QrcodeScanner) {
+        html5QrcodeScanner.stop().then(() => {
+            html5QrcodeScanner.clear();
+            beepPlayed = false;
+            console.log("Scanner manually stopped");
+        }).catch(err => console.error("Stop error:", err));
     }
-    </script>
+}
+</script>
     """
 
-    components.html(scanner_with_buttons, height=450)
+    components.html(scanner_with_buttons, height=500, scrolling=True)
 
     barcode = st.text_input("Or enter barcode manually")
 
