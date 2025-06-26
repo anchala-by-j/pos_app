@@ -4,27 +4,7 @@ import os
 from datetime import datetime
 from sqlalchemy import create_engine, text
 import tempfile
-from fpdf import (FPDF)
-from streamlit_webrtc import webrtc_streamer, VideoTransformerBase
-import cv2
-from pyzbar import pyzbar
-
-class BarcodeScanner(VideoTransformerBase):
-    def __init__(self):
-        self.last_code = ""
-
-    def transform(self, frame):
-        img = frame.to_ndarray(format="bgr24")
-        barcodes = pyzbar.decode(img)
-
-        for barcode in barcodes:
-            barcode_data = barcode.data.decode("utf-8")
-            self.last_code = barcode_data
-            # Draw rectangle
-            (x, y, w, h) = barcode.rect
-            cv2.rectangle(img, (x, y), (x + w, y + h), (0, 255, 0), 2)
-
-        return img
+from fpdf import FPDF
 
 st.image("logo.png", use_container_width=True)
 
@@ -88,7 +68,6 @@ def generate_invoice_pdf(bill_no, customer, bill_items, total_amount, paid, bala
     pdf.add_page()
     pdf.set_auto_page_break(auto=True, margin=15)
 
-    # Add logo
     logo_path = os.path.join(os.path.dirname(__file__), "logo.png")
     if os.path.exists(logo_path):
         pdf.image(logo_path, x=80, y=10, w=50)
@@ -96,7 +75,6 @@ def generate_invoice_pdf(bill_no, customer, bill_items, total_amount, paid, bala
     else:
         pdf.ln(10)
 
-    # Header
     pdf.set_font("Arial", 'B', 16)
     pdf.cell(200, 10, txt="Anchala Sarees - Invoice", ln=True, align="C")
     pdf.ln(5)
@@ -107,7 +85,6 @@ def generate_invoice_pdf(bill_no, customer, bill_items, total_amount, paid, bala
     pdf.cell(100, 10, txt=f"Date: {datetime.today().strftime('%d-%m-%Y')}", ln=True)
     pdf.ln(5)
 
-    # Table headers
     pdf.set_font("Arial", 'B', 12)
     pdf.set_fill_color(240, 240, 240)
     pdf.cell(80, 10, "Product", border=1, fill=True)
@@ -116,21 +93,14 @@ def generate_invoice_pdf(bill_no, customer, bill_items, total_amount, paid, bala
     pdf.cell(40, 10, "Total", border=1, fill=True, align="C")
     pdf.ln()
 
-    # Table rows
     pdf.set_font("Arial", size=12)
     for item in bill_items:
-        product = item.get('product_name', '')
-        qty = item.get('qty', 0)
-        price = item.get('price', 0.0)
-        total = item.get('total_price', 0.0)
-
-        pdf.cell(80, 10, str(product), border=1)
-        pdf.cell(30, 10, str(qty), border=1, align="C")
-        pdf.cell(40, 10, f"Rs.{price:.2f}", border=1, align="R")
-        pdf.cell(40, 10, f"Rs.{total:.2f}", border=1, align="R")
+        pdf.cell(80, 10, str(item.get('product_name', '')), border=1)
+        pdf.cell(30, 10, str(item.get('qty', 0)), border=1, align="C")
+        pdf.cell(40, 10, f"Rs.{item.get('price', 0.0):.2f}", border=1, align="R")
+        pdf.cell(40, 10, f"Rs.{item.get('total_price', 0.0):.2f}", border=1, align="R")
         pdf.ln()
 
-    # Totals
     pdf.ln(5)
     pdf.cell(150, 10, "Total Amount", border=1)
     pdf.cell(40, 10, f"Rs.{total_amount:.2f}", border=1, align="R")
@@ -141,21 +111,17 @@ def generate_invoice_pdf(bill_no, customer, bill_items, total_amount, paid, bala
     pdf.cell(150, 10, "Balance", border=1)
     pdf.cell(40, 10, f"Rs.{balance:.2f}", border=1, align="R")
 
-    # Footer note
     pdf.ln(15)
     pdf.set_font("Arial", 'I', 10)
     pdf.cell(200, 10, txt="Thank you for shopping at Anchala Sarees!", ln=True, align="C")
 
-    # Save to temporary file
     tmp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
     pdf.output(tmp_file.name)
     return tmp_file.name
 
-# Initialize session state
 if 'bill_items' not in st.session_state:
     st.session_state.bill_items = []
 
-# UI Navigation
 page = st.sidebar.radio("Select Module", ["POS", "Returns", "Balances"])
 
 if page == "POS":
@@ -169,21 +135,29 @@ if page == "POS":
     """, unsafe_allow_html=True)
     st.markdown("Scan or enter the barcode below to add items to a bill.")
 
-    st.markdown("### 📸 Scan Barcode or Enter Manually")
-    col1, col2 = st.columns(2)
+    st.markdown("### 📸 Scan Barcode Using Camera")
+    scanner_html = """
+    <script src=\"https://unpkg.com/html5-qrcode\" type=\"text/javascript\"></script>
+    <div id=\"reader\" style=\"width: 300px;\"></div>
 
-    with col1:
-        barcode = st.text_input("Manual Entry", key="manual_barcode")
+    <script>
+    function onScanSuccess(decodedText, decodedResult) {
+        const inputBox = window.parent.document.querySelector('iframe').contentWindow.document.querySelector('input[data-testid="stTextInput"]');
+        if (inputBox) {
+            inputBox.value = decodedText;
+            inputBox.dispatchEvent(new Event("input", { bubbles: true }));
+        }
+        html5QrcodeScanner.clear();
+    }
 
-    with col2:
-        webrtc_ctx = webrtc_streamer(key="barcode-scanner", video_processor_factory=BarcodeScanner,
-                                     media_stream_constraints={"video": True, "audio": False}, async_processing=True)
+    const html5QrcodeScanner = new Html5QrcodeScanner(
+        "reader", { fps: 10, qrbox: 250 }, false);
+    html5QrcodeScanner.render(onScanSuccess);
+    </script>
+    """
+    st.components.v1.html(scanner_html, height=400)
 
-        if webrtc_ctx.video_processor:
-            scanned = webrtc_ctx.video_processor.last_code
-            if scanned and scanned != st.session_state.get("manual_barcode"):
-                st.session_state.manual_barcode = scanned
-                st.rerun()  # reload app with scanned barcode
+    barcode = st.text_input("Or enter barcode manually")
 
     if barcode:
         inventory_df = load_inventory()
@@ -271,83 +245,5 @@ if page == "POS":
                 st.download_button("📄 Download Invoice", open(invoice_path, "rb"), file_name=f"Invoice_{bill_no}.pdf",
                                    mime="application/pdf")
                 st.session_state.bill_items.clear()
-                with open(invoice_path, "rb") as f:
-                    st.download_button("📄 Download Invoice", f, file_name=f"Invoice_{bill_no}.pdf",
-                                       mime="application/pdf")
             else:
                 st.warning("Fill Customer Name and Paid Amount before confirming.")
-
-elif page == "Returns":
-    st.title("Returns")
-    bill_no = st.text_input("Bill Number")
-    product_code = st.text_input("Product Code")
-    qty = st.number_input("Quantity Returned", min_value=1, value=1)
-    refund_amount = st.number_input("Refund/Adjustment Amount", min_value=0.0, value=0.0)
-    remarks = st.text_input("Remarks")
-
-    if st.button("Process Return"):
-        if bill_no and product_code:
-            try:
-                return_data = pd.DataFrame([{
-                    'bill_no': bill_no,
-                    'product_code': product_code,
-                    'product_name': '',  # Optional, fetch if needed
-                    'qty': qty,
-                    'return_date': datetime.today().date(),
-                    'refund_amount': refund_amount,
-                    'remarks': remarks
-                }])
-                save_return(return_data)
-
-                # Add returned qty back to inventory logic here if needed
-                update_balance(bill_no, refund_amount)  # Adjust customer's balance
-                st.success("Return processed successfully.")
-            except Exception as e:
-                st.error(f"Error processing return: {e}")
-        else:
-            st.warning("Please enter Bill Number and Product Code.")
-
-elif page == "Balances":
-    st.title("Update Balance Payment")
-
-    sales_df = load_sales()
-    # Filter customers with pending balance
-    pending_df = sales_df[sales_df['balance'] > 0]
-
-    if pending_df.empty:
-        st.info("All customers are fully paid.")
-    else:
-        customers = pending_df['customer'].dropna().unique().tolist()
-        selected_customer = st.selectbox("Select Customer with Pending Balance", customers)
-
-        if selected_customer:
-            customer_bills = pending_df[pending_df['customer'] == selected_customer]
-            bill_no = st.selectbox("Select Bill Number", customer_bills['bill_no'].astype(str).tolist())
-
-            if bill_no:
-                bill = customer_bills[customer_bills['bill_no'].astype(str) == bill_no].iloc[0]
-                pending_balance = bill['balance']
-
-                st.markdown(f"**Pending Balance:** ₹{pending_balance:.2f}")
-                amount = st.number_input("Amount Paid", min_value=0.0, max_value=float(pending_balance), value=0.0)
-                remarks = st.text_input("Remarks (optional)")
-
-                if st.button("Update Balance"):
-                    if amount <= 0:
-                        st.warning("Amount must be greater than zero.")
-                    else:
-                        try:
-                            update_balance(bill_no, amount)
-
-                            payment_df = pd.DataFrame([{
-                                'bill_no': bill_no,
-                                'customer': selected_customer,
-                                'payment_date': datetime.today().date(),
-                                'amount_paid': amount,
-                                'remarks': remarks
-                            }])
-                            save_balance_payment(payment_df)
-
-                            st.success(f"₹{amount:.2f} received from {selected_customer}. Balance updated.")
-                        except Exception as e:
-                            st.error(f"Error updating balance: {e}")
