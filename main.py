@@ -5,6 +5,7 @@ from datetime import datetime
 from sqlalchemy import create_engine, text
 import tempfile
 from fpdf import FPDF
+import streamlit.components.v1 as components
 
 st.image("logo.png", use_container_width=True)
 
@@ -136,43 +137,65 @@ if page == "POS":
     st.markdown("Scan or enter the barcode below to add items to a bill.")
 
     st.markdown("### 📸 Scan Barcode Using Camera")
-    beep_audio = """
+    scanner_with_buttons = """
     <audio id="beepSound" src="beep.mp3" preload="auto"></audio>
+    <div style="margin-bottom:10px;">
+      <button onclick="startScanner()">📷 Start Scanning</button>
+      <button onclick="stopScanner()">🛑 Stop Scanning</button>
+    </div>
+    <div id="reader" style="width:300px;"></div>
+    <script src="https://unpkg.com/html5-qrcode"></script>
     <script>
+    let html5QrcodeScanner;
     let beepPlayed = false;
-    function onScanSuccess(decodedText, decodedResult) {
-        const beep = document.getElementById("beepSound");
-        if (!beepPlayed) {
-            beep.play();
-            beepPlayed = true;
+
+    function startScanner() {
+        if (!html5QrcodeScanner) {
+            html5QrcodeScanner = new Html5Qrcode("reader");
         }
-        const barcodeInput = window.parent.document.querySelector('input[data-testid="stTextInput"]');
-        if (barcodeInput) {
-            barcodeInput.value = decodedText;
-            barcodeInput.dispatchEvent(new Event('input', { bubbles: true }));
+
+        html5QrcodeScanner.start(
+            { facingMode: "environment" },
+            {
+                fps: 10,
+                qrbox: 250
+            },
+            (decodedText, decodedResult) => {
+                if (!beepPlayed) {
+                    document.getElementById("beepSound").play();
+                    beepPlayed = true;
+                }
+                const barcodeInput = window.parent.document.querySelector('input[data-testid="stTextInput"]');
+                if (barcodeInput) {
+                    barcodeInput.value = decodedText;
+                    barcodeInput.dispatchEvent(new Event('input', { bubbles: true }));
+                }
+                html5QrcodeScanner.stop().then(() => {
+                    beepPlayed = false;
+                    console.log("Scanner stopped");
+                }).catch(err => console.error("Stop error:", err));
+            },
+            (errorMessage) => {
+                // Optional: console.log(errorMessage);
+            }
+        ).catch(err => {
+            console.error("Start error:", err);
+        });
+    }
+
+    function stopScanner() {
+        if (html5QrcodeScanner) {
+            html5QrcodeScanner.stop().then(() => {
+                html5QrcodeScanner.clear();
+                beepPlayed = false;
+                console.log("Scanner manually stopped");
+            }).catch(err => console.error("Stop error:", err));
         }
-        // Stop scanning once code is read
-        html5QrcodeScanner.clear();
     }
     </script>
     """
 
-    scanner_html = f"""
-    <link src="https://unpkg.com/html5-qrcode"></script>
-    <script src="https://unpkg.com/html5-qrcode"></script>
-    <div id="reader" style="width:300px;"></div>
-    <script>
-    function startScanner() {{
-        const html5QrcodeScanner = new Html5QrcodeScanner(
-            "reader", {{ fps: 10, qrbox: 250 }}, false);
-        html5QrcodeScanner.render(onScanSuccess);
-    }}
-    startScanner();
-    </script>
-    """
-
-    # Inject both HTML + audio
-    st.components.v1.html(beep_audio + scanner_html, height=400)
+    components.html(scanner_with_buttons, height=450)
 
     barcode = st.text_input("Or enter barcode manually")
 
