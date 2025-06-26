@@ -7,3 +7,5 @@ fpdf2        # If you used this for PDF generation
 sqlalchemy~=2.0.41
 psycopg2-binary
 fpdf~=1.7.2
+opencv-python-headless
+pyzbar

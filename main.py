@@ -5,6 +5,26 @@ from datetime import datetime
 from sqlalchemy import create_engine, text
 import tempfile
 from fpdf import (FPDF)
+from streamlit_webrtc import webrtc_streamer, VideoTransformerBase
+import cv2
+from pyzbar import pyzbar
+
+class BarcodeScanner(VideoTransformerBase):
+    def __init__(self):
+        self.last_code = ""
+
+    def transform(self, frame):
+        img = frame.to_ndarray(format="bgr24")
+        barcodes = pyzbar.decode(img)
+
+        for barcode in barcodes:
+            barcode_data = barcode.data.decode("utf-8")
+            self.last_code = barcode_data
+            # Draw rectangle
+            (x, y, w, h) = barcode.rect
+            cv2.rectangle(img, (x, y), (x + w, y + h), (0, 255, 0), 2)
+
+        return img
 
 st.image("logo.png", use_container_width=True)
 
@@ -149,7 +169,21 @@ if page == "POS":
     """, unsafe_allow_html=True)
     st.markdown("Scan or enter the barcode below to add items to a bill.")
 
-    barcode = st.text_input("Scan Barcode (Product Code)")
+    st.markdown("### 📸 Scan Barcode or Enter Manually")
+    col1, col2 = st.columns(2)
+
+    with col1:
+        barcode = st.text_input("Manual Entry", key="manual_barcode")
+
+    with col2:
+        webrtc_ctx = webrtc_streamer(key="barcode-scanner", video_processor_factory=BarcodeScanner,
+                                     media_stream_constraints={"video": True, "audio": False}, async_processing=True)
+
+        if webrtc_ctx.video_processor:
+            scanned = webrtc_ctx.video_processor.last_code
+            if scanned and scanned != st.session_state.get("manual_barcode"):
+                st.session_state.manual_barcode = scanned
+                st.rerun()  # reload app with scanned barcode
 
     if barcode:
         inventory_df = load_inventory()
