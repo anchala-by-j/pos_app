@@ -274,28 +274,46 @@ elif page == "Returns":
             st.warning("Please enter Bill Number and Product Code.")
 
 elif page == "Balances":
-    st.title("Update Balances")
-    bill_no = st.text_input("Bill Number")
-    customer = st.text_input("Customer Name")
-    amount = st.number_input("Amount Paid", min_value=0.0, value=0.0)
-    remarks = st.text_input("Remarks")
+    st.title("Update Balance Payment")
 
-    if st.button("Update Balance"):
-        if bill_no and amount > 0:
-            try:
-                update_balance(bill_no, amount)
+    sales_df = load_sales()
+    # Filter customers with pending balance
+    pending_df = sales_df[sales_df['balance'] > 0]
 
-                payment_df = pd.DataFrame([{
-                    'bill_no': bill_no,
-                    'customer': customer,
-                    'payment_date': datetime.today().date(),
-                    'amount_paid': amount,
-                    'remarks': remarks
-                }])
-                save_balance_payment(payment_df)
+    if pending_df.empty:
+        st.info("All customers are fully paid.")
+    else:
+        customers = pending_df['customer'].dropna().unique().tolist()
+        selected_customer = st.selectbox("Select Customer with Pending Balance", customers)
 
-                st.success("Balance updated successfully.")
-            except Exception as e:
-                st.error(f"Error updating balance: {e}")
-        else:
-            st.warning("Please provide Bill Number and a valid Amount.")
+        if selected_customer:
+            customer_bills = pending_df[pending_df['customer'] == selected_customer]
+            bill_no = st.selectbox("Select Bill Number", customer_bills['bill_no'].astype(str).tolist())
+
+            if bill_no:
+                bill = customer_bills[customer_bills['bill_no'].astype(str) == bill_no].iloc[0]
+                pending_balance = bill['balance']
+
+                st.markdown(f"**Pending Balance:** ₹{pending_balance:.2f}")
+                amount = st.number_input("Amount Paid", min_value=0.0, max_value=float(pending_balance), value=0.0)
+                remarks = st.text_input("Remarks (optional)")
+
+                if st.button("Update Balance"):
+                    if amount <= 0:
+                        st.warning("Amount must be greater than zero.")
+                    else:
+                        try:
+                            update_balance(bill_no, amount)
+
+                            payment_df = pd.DataFrame([{
+                                'bill_no': bill_no,
+                                'customer': selected_customer,
+                                'payment_date': datetime.today().date(),
+                                'amount_paid': amount,
+                                'remarks': remarks
+                            }])
+                            save_balance_payment(payment_df)
+
+                            st.success(f"₹{amount:.2f} received from {selected_customer}. Balance updated.")
+                        except Exception as e:
+                            st.error(f"Error updating balance: {e}")
