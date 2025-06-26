@@ -10,3 +10,4 @@ fpdf~=1.7.2
 opencv-python-headless
 pyzbar
 streamlit-webrtc
+streamlit_qrcode_scanner

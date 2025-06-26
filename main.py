@@ -5,7 +5,7 @@ from datetime import datetime
 from sqlalchemy import create_engine, text
 import tempfile
 from fpdf import FPDF
-import streamlit.components.v1 as components
+from streamlit_qrcode_scanner import qrcode_scanner
 
 st.image("logo.png", use_container_width=True)
 
@@ -16,21 +16,16 @@ DB_HOST = st.secrets["connections.postgres"]["DB_HOST"]
 DB_NAME = st.secrets["connections.postgres"]["DB_NAME"]
 DB_PORT = st.secrets["connections.postgres"]["DB_PORT"]
 
-# Create database engine
 @st.cache_resource
 def get_engine():
     cert_path = os.path.join(os.path.dirname(__file__), "prod-ca-2021.crt")
     return create_engine(
         f"postgresql://{DB_USERNAME}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}",
-        connect_args={
-            "sslmode": "verify-full",
-            "sslrootcert": cert_path
-        }
+        connect_args={"sslmode": "verify-full", "sslrootcert": cert_path}
     )
 
 engine = get_engine()
 
-# Load data functions
 @st.cache_data(ttl=600)
 def load_inventory():
     df = pd.read_sql('SELECT * FROM "mainDB".purchase_audit', con=engine)
@@ -39,9 +34,6 @@ def load_inventory():
 
 def load_sales():
     return pd.read_sql('SELECT * FROM "mainDB".sales', con=engine)
-
-def load_billbook():
-    return pd.read_sql('SELECT * FROM "mainDB".billbook', con=engine)
 
 def save_sales(df):
     df.to_sql("sales", con=engine, if_exists="append", index=False, schema="mainDB")
@@ -134,139 +126,10 @@ if page == "POS":
             }
         </style>
     """, unsafe_allow_html=True)
-    st.markdown("Scan or enter the barcode below to add items to a bill.")
+    st.markdown("### 📸 Scan or enter the barcode below")
 
-    st.markdown("### 📸 Scan Barcode")
-    scanner_with_buttons = """
-    <audio id="beepSound" src="https://www.soundjay.com/button/beep-07.wav" preload="auto"></audio>
-<div style="margin-bottom:10px;">
-  <button onclick="startScanner()">📷 Start Scanning</button>
-  <button onclick="stopScanner()">🛑 Stop Scanning</button>
-</div>
-<div id="reader" style="width:300px;"></div>
-<script src="https://unpkg.com/html5-qrcode"></script>
-<script>
-let html5QrcodeScanner;
-let beepPlayed = false;
-
-function startScanner() {
-    if (!html5QrcodeScanner) {
-        html5QrcodeScanner = new Html5Qrcode("reader");
-    }
-
-    html5QrcodeScanner.start(
-        { facingMode: "environment" },
-        {
-            fps: 10,
-            qrbox: 250
-        },
-        (decodedText, decodedResult) => {
-            if (!beepPlayed) {
-                document.getElementById("beepSound").play();
-                beepPlayed = true;
-            }
-            const inputBoxes = window.parent.document.querySelectorAll('input');
-            for (const box of inputBoxes) {
-                if (box.placeholder === "Or enter barcode manually") {
-                    box.value = decodedText;
-                    box.dispatchEvent(new Event("input", { bubbles: true }));
-                    break;
-                }
-            }
-            html5QrcodeScanner.stop().then(() => {
-                beepPlayed = false;
-                console.log("Scanner stopped");
-            }).catch(err => console.error("Stop error:", err));
-        },
-        (errorMessage) => {
-            // Optional debug
-        }
-    ).catch(err => {
-        console.error("Start error:", err);
-    });
-}
-
-function stopScanner() {
-    if (html5QrcodeScanner) {
-        html5QrcodeScanner.stop().then(() => {
-            html5QrcodeScanner.clear();
-            beepPlayed = false;
-            console.log("Scanner manually stopped");
-        }).catch(err => console.error("Stop error:", err));
-    }
-}
-</script>
-    """
-
-    components.html(
-        """
-        <audio id="beepSound" src="https://www.soundjay.com/button/beep-07.wav" preload="auto"></audio>
-        <div style="margin-bottom:10px;">
-          <button onclick="startScanner()">📷 Start Scanning</button>
-          <button onclick="stopScanner()">🛑 Stop Scanning</button>
-        </div>
-        <div id="reader" style="width:300px;"></div>
-        <script src="https://unpkg.com/html5-qrcode"></script>
-        <script>
-        let html5QrcodeScanner;
-        let beepPlayed = false;
-
-        function startScanner() {
-            if (!html5QrcodeScanner) {
-                html5QrcodeScanner = new Html5Qrcode("reader");
-            }
-
-            html5QrcodeScanner.start(
-                { facingMode: "environment" },
-                { fps: 10, qrbox: 250 },
-                (decodedText) => {
-                    if (!beepPlayed) {
-                        document.getElementById("beepSound").play();
-                        beepPlayed = true;
-                    }
-
-                    // Send message to Streamlit
-                    const message = { type: "barcode", data: decodedText };
-                    window.parent.postMessage(message, "*");
-
-                    html5QrcodeScanner.stop().then(() => {
-                        beepPlayed = false;
-                        html5QrcodeScanner.clear();
-                    });
-                },
-                (error) => {}
-            );
-        }
-
-        function stopScanner() {
-            if (html5QrcodeScanner) {
-                html5QrcodeScanner.stop().then(() => {
-                    html5QrcodeScanner.clear();
-                    beepPlayed = false;
-                });
-            }
-        }
-        </script>
-        """,
-        height=500
-    )
-    components.html(
-        """
-        <script>
-        window.addEventListener("message", (event) => {
-            if (event.data && event.data.type === "barcode") {
-                const input = window.parent.document.querySelector('input[data-testid="stTextInput"][placeholder="Or enter barcode manually"]');
-                if (input) {
-                    input.value = event.data.data;
-                    input.dispatchEvent(new Event("input", { bubbles: true }));
-                }
-            }
-        });
-        </script>
-        """,
-        height=0
-    )
-    barcode = st.text_input("Or enter barcode manually", key="manual_barcode", placeholder="Or enter barcode manually")
+    scanned_code = qrcode_scanner("Scan Product Barcode")
+    barcode = st.text_input("Or enter barcode manually", value=scanned_code or "", key="manual_barcode")
 
     if barcode:
         inventory_df = load_inventory()
@@ -299,9 +162,7 @@ function stopScanner() {
 
     if st.session_state.bill_items:
         st.subheader("Current Bill Items")
-
         display_df = pd.DataFrame(st.session_state.bill_items).drop(columns=["cost", "margin"])
-
         total_row = pd.DataFrame([{
             'product_code': '',
             'product_name': 'Total',
@@ -309,7 +170,6 @@ function stopScanner() {
             'price': '',
             'total_price': display_df['total_price'].sum()
         }])
-
         display_df_with_total = pd.concat([display_df, total_row], ignore_index=True)
         st.dataframe(display_df_with_total)
 
@@ -326,7 +186,6 @@ function stopScanner() {
         st.markdown(f"### 🧾 Bill Number: `{bill_no}`")
         customer = st.text_input("Customer Name")
         paid = st.number_input("Paid Amount", min_value=0.0, value=0.0)
-        returns = st.number_input("Returns", min_value=0.0, value=0.0)
 
         if st.button("Confirm Sale", disabled=not st.session_state.bill_items):
             if bill_no.strip() and customer.strip():
@@ -348,11 +207,78 @@ function stopScanner() {
                 billbook_df['bill_no'] = bill_no
                 save_billbook(billbook_df)
 
-                invoice_path = generate_invoice_pdf(bill_no, customer, st.session_state.bill_items, total_amount, paid,
-                                                    total_amount - paid)
+                invoice_path = generate_invoice_pdf(bill_no, customer, st.session_state.bill_items, total_amount, paid, total_amount - paid)
                 st.success("Sale recorded and bill updated.")
-                st.download_button("📄 Download Invoice", open(invoice_path, "rb"), file_name=f"Invoice_{bill_no}.pdf",
-                                   mime="application/pdf")
+                st.download_button("📄 Download Invoice", open(invoice_path, "rb"), file_name=f"Invoice_{bill_no}.pdf", mime="application/pdf")
                 st.session_state.bill_items.clear()
             else:
                 st.warning("Fill Customer Name and Paid Amount before confirming.")
+
+elif page == "Returns":
+    st.title("Returns")
+    bill_no = st.text_input("Bill Number")
+    product_code = st.text_input("Product Code")
+    qty = st.number_input("Quantity Returned", min_value=1, value=1)
+    refund_amount = st.number_input("Refund/Adjustment Amount", min_value=0.0, value=0.0)
+    remarks = st.text_input("Remarks")
+
+    if st.button("Process Return"):
+        if bill_no and product_code:
+            try:
+                return_data = pd.DataFrame([{
+                    'bill_no': bill_no,
+                    'product_code': product_code,
+                    'product_name': '',
+                    'qty': qty,
+                    'return_date': datetime.today().date(),
+                    'refund_amount': refund_amount,
+                    'remarks': remarks
+                }])
+                save_return(return_data)
+                update_balance(bill_no, refund_amount)
+                st.success("Return processed successfully.")
+            except Exception as e:
+                st.error(f"Error processing return: {e}")
+        else:
+            st.warning("Please enter Bill Number and Product Code.")
+
+elif page == "Balances":
+    st.title("Update Balance Payment")
+    sales_df = load_sales()
+    pending_df = sales_df[sales_df['balance'] > 0]
+
+    if pending_df.empty:
+        st.info("All customers are fully paid.")
+    else:
+        customers = pending_df['customer'].dropna().unique().tolist()
+        selected_customer = st.selectbox("Select Customer with Pending Balance", customers)
+
+        if selected_customer:
+            customer_bills = pending_df[pending_df['customer'] == selected_customer]
+            bill_no = st.selectbox("Select Bill Number", customer_bills['bill_no'].astype(str).tolist())
+
+            if bill_no:
+                bill = customer_bills[customer_bills['bill_no'].astype(str) == bill_no].iloc[0]
+                pending_balance = bill['balance']
+
+                st.markdown(f"**Pending Balance:** ₹{pending_balance:.2f}")
+                amount = st.number_input("Amount Paid", min_value=0.0, max_value=float(pending_balance), value=0.0)
+                remarks = st.text_input("Remarks (optional)")
+
+                if st.button("Update Balance"):
+                    if amount <= 0:
+                        st.warning("Amount must be greater than zero.")
+                    else:
+                        try:
+                            update_balance(bill_no, amount)
+                            payment_df = pd.DataFrame([{
+                                'bill_no': bill_no,
+                                'customer': selected_customer,
+                                'payment_date': datetime.today().date(),
+                                'amount_paid': amount,
+                                'remarks': remarks
+                            }])
+                            save_balance_payment(payment_df)
+                            st.success(f"₹{amount:.2f} received from {selected_customer}. Balance updated.")
+                        except Exception as e:
+                            st.error(f"Error updating balance: {e}")
